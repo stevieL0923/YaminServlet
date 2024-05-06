@@ -3,6 +3,7 @@ package enrollment;
 import java.util.Objects;
 
 public class Enrollment {
+	private int id;
 	private int participantId;
 	private int batchId;
 	
@@ -28,6 +29,14 @@ public class Enrollment {
 
 	public void setBatchId(int batchId) {
 		this.batchId = batchId;
+	}
+
+	public int getId() {
+		return id;
+	}
+
+	public void setId(int id) {
+		this.id = id;
 	}
 
 	@Override

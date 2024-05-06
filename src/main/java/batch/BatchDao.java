@@ -20,5 +20,5 @@ public interface BatchDao {
 	public boolean updateBatch(Batch aBatch) throws DataBaseUpdateException;
 	
 	// Delete a specific Batch
-	public void deleteBatch(int id) throws DataBaseDeleteException;
+	public int deleteBatch(int id) throws DataBaseDeleteException;
 }

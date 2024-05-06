@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="ISO-8859-1">
+<title>Add Batch Item</title>
+</head>
+<body>
+	<form name="newForm" method="post" action="updateAddBatch">
+	    <label for="batchId">Batch Id:</label> <input type="text" id="batchId" name="batchId" required/> <br/>
+	    <label for="timeSlot">TimeSlot:</label> <input type="text" id="timeSlot" name="timeSlot" required/> <br/>
+		  <input type="radio" id="morning" name="session" value="morning">
+		  <label for="morning">Morning Session</label><br>
+		  <input type="radio" id="evening" name="session" value="evening">
+  		  <label for="evening">Evening Session</label><br>
+	    
+	    <input type="submit" value="New" />
+    </form>
+</body>
+</html>

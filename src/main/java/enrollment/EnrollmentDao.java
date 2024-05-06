@@ -20,5 +20,5 @@ public interface EnrollmentDao {
 	public boolean updateEnrollment(Enrollment aEnrollment) throws DataBaseUpdateException;
 	
 	// Delete a specific Enrollment
-	public void deleteEnrollment(int id) throws DataBaseDeleteException;
+	public int deleteEnrollment(int id) throws DataBaseDeleteException;
 }

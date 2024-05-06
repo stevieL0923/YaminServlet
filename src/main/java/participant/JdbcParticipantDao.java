@@ -1,13 +1,12 @@
 package participant;
 
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.sql.DataSource;
-
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.support.rowset.SqlRowSet;
-
+import dbConn.DbConn;
 import exception.DataBaseDeleteException;
 import exception.DataBaseInsertException;
 import exception.DataBaseUpdateException;
@@ -23,36 +22,33 @@ import exception.DataBaseUpdateException;
 
 public class JdbcParticipantDao implements ParticipantDao {
 	
-	// Define a reference to a JdbcTemplateObject we can use to access the tables in the database
-	private JdbcTemplate participantDB;
-
 	// Instantiate a JdbcTemplate object and assign to reference in the constructor
-	public JdbcParticipantDao(DataSource aDataSource) {
-		participantDB = new JdbcTemplate(aDataSource);
-	}
-
+	public JdbcParticipantDao() { }
 
 	@Override
 	public List<Participant> getAllParticipant() {
+		ResultSet results;
+		
 		// Define a String with SQL to be run
 		String allParticipants = "select * from participant"; // Note ; not required in at then end of SQL string
-		
-		// Send the SQL String to the database manage and store result in an SqlRowSet
-		SqlRowSet rowSet = participantDB.queryForRowSet(allParticipants);
-		
-		// Define the object containing all participants
+
 		List<Participant> participantList = new ArrayList<Participant>();
 		
-		// "Parse the result" - convert the rows from select into participant objects object
-		//                      using a method to retrieve each row, create a participant
-		//                         then add the participant object to the list
+		try {
+
+			PreparedStatement preparedStatement = DbConn.getConn().prepareStatement(allParticipants);
+			
+			results = preparedStatement.executeQuery();
+			
+			while(results.next()) {
+				participantList.add(participantHelper(results));
+			}
+			
+		} catch (SQLException e) {
+			e.printStackTrace();
+		} 
 		
-		// Loop through the SqlRowset converting the rows in it, one at a time
-		while(rowSet.next()) { // Position at the next row (if there is one)
-			participantList.add(participantHelper(rowSet)); // Convert current row to an object
-		}
-		
-		return participantList;  // Return the object containing all the participants
+		return participantList;
 	}
 
 	// Convert a row in the results from a Select into a Participant object
@@ -60,68 +56,118 @@ public class JdbcParticipantDao implements ParticipantDao {
 	// Since its requires an object (SqlRowSet) created in this class it doesn't
 	//       make sense to allow other outside the class to use
 	
-	private Participant participantHelper(SqlRowSet aRow) {
-	// Define an object to be returned
+	private Participant participantHelper(ResultSet aRow) {
+		// Define an object to be returned
 		Participant aParticipant = new Participant(); // A Participant object initialized to default values
 		
-	 // Use the setters for the POJO to set the values from each column the SqlRowSet
-		String fullName = aRow.getString("full_name");
-		aParticipant.setFullName(fullName);
-		
-		String email = aRow.getString("email");
-		aParticipant.setEmail(email);
-
-		String phone = aRow.getString("phone");
-		aParticipant.setEmail(phone);
-		
-		boolean morning = aRow.getBoolean("morningSession");
-		aParticipant.setMorningSession(morning);
-		
+		try {			
+			// Use the setters for the POJO to set the values from each column the SqlRowSet
+			int participantId = aRow.getInt("participant_id");
+			aParticipant.setParticipantId(participantId);
+	
+			String fullName = aRow.getString("full_name");
+			aParticipant.setFullName(fullName);
+			
+			String email = aRow.getString("email");
+			aParticipant.setEmail(email);
+	
+			String phone = aRow.getString("phone");
+			aParticipant.setPhone(phone);
+			
+			boolean morning = aRow.getBoolean("morningSession");
+			aParticipant.setMorningSession(morning);
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
 		// Return the object created in this method
 		return aParticipant;
 	}
 	@Override
 	public Participant getParticipantByName(String name) {
+
+		ResultSet results;
+
 		Participant aParticipant = null;
 		
 		String sqlString = " select * from participant"
 	              + " where full_name = ?";
 	
-		SqlRowSet theParticipantFromDatabase = participantDB.queryForRowSet(sqlString, name);
-		
-		if(theParticipantFromDatabase.next()) {   // if the Participant was found, position the result at the first row
-			aParticipant = participantHelper(theParticipantFromDatabase); // Send the result to conversion method
+		try {
+			PreparedStatement preparedStatement = DbConn.getConn().prepareStatement(sqlString);
+			
+			preparedStatement.setString(1, name);
+			
+			results = preparedStatement.executeQuery();
+			
+			if(results.next()) {   // if the Participant was found, position the result at the first row
+				aParticipant = participantHelper(results); // Send the result to conversion method
+			}
+	
+		} catch (Exception ex) {
+			ex.printStackTrace();
 		}
-
+		
 		return aParticipant;
 	}
 
 	@Override
-	public void addParticipant(Participant participant) throws DataBaseInsertException {
+	public Participant getParticipantById(int id) {
+		ResultSet results;
+
+		Participant aParticipant = null;
+		
+		String sqlString = " select * from participant"
+	              + " where participant_id = ?";
+	
+		try {
+			PreparedStatement preparedStatement = DbConn.getConn().prepareStatement(sqlString);
+			
+			preparedStatement.setInt (1, id);
+			
+			results = preparedStatement.executeQuery();
+			
+			if(results.next()) {   // if the Participant was found, position the result at the first row
+				aParticipant = participantHelper(results); // Send the result to conversion method
+			}
+	
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+		
+		return aParticipant;
+	}
+	
+	@Override
+	public void addParticipant(Participant aParticipant) throws DataBaseInsertException {
+
 		// Define a String to hold the SQL to be sent to the database manager
 		String sqlString = " insert into participant " 
-				              +" (full_name, email, phone, morningSession) "
-				              +" values(?, ?, ?, ?)";		
-				
-		// Send the SQL String to the database manager with data from participant object received
-		int numberRowsAdded = participantDB.update(sqlString,
-												participant.getFullName(),
-												participant.getEmail(),
-												participant.getPhone(),
-												participant.isMorningSession()
-											);
+				              +" values(null, ?, ?, ?, ?)";
 		
-		// Check to see if a row was added to the data base
-		if(numberRowsAdded != 1) {
-			throw new DataBaseInsertException("Attempt to add Participant \"" + participant.getFullName() + "\"");
+		try {
+			PreparedStatement preparedStatement = DbConn.getConn().prepareStatement(sqlString);
+			
+			preparedStatement.setString( 1, aParticipant.getFullName());
+			preparedStatement.setString( 2, aParticipant.getEmail());
+			preparedStatement.setString( 3, aParticipant.getPhone());
+			preparedStatement.setBoolean(4, aParticipant.isMorningSession());
+			
+			int numberRowsAdded = preparedStatement.executeUpdate();
+			
+			if(numberRowsAdded != 1) {
+				throw new DataBaseInsertException("Attempt to add Participant \"" + aParticipant.getFullName() + "\"");
+			}
+	
+		} catch (Exception ex) {
+			ex.printStackTrace();
 		}
-		// return to caller
-		return;
-		
+
+		return;		
 	}
 
 	@Override
 	public boolean updateParticipant(Participant aParticipant) throws DataBaseUpdateException {
+
 		// Define return value variable
 		boolean updateWorked = false;
 		
@@ -135,35 +181,79 @@ public class JdbcParticipantDao implements ParticipantDao {
 				          +",       morningSession = ? "
 				          +" where  full_name = ?";
 		
-		// Send the SQL String to the database manage and receive number of rows affected
-		int numberRowsUpdated = participantDB.update(updateSQL
-				                                  ,aParticipant.getEmail()
-				                                  ,aParticipant.getPhone()
-				                                  ,aParticipant.isMorningSession()
-				                                  ,aParticipant.getFullName()
-				                                  );
-		// Check to be sure only one row was updated		
-		if(numberRowsUpdated == 1) {
-			return true;
+		try {
+			PreparedStatement preparedStatement = DbConn.getConn().prepareStatement(updateSQL);
+			
+			preparedStatement.setString( 1, aParticipant.getEmail());
+			preparedStatement.setString( 2, aParticipant.getPhone());
+			preparedStatement.setBoolean(3, aParticipant.isMorningSession());
+			preparedStatement.setString( 4, aParticipant.getFullName());
+			
+			int numberRowsUpdated = preparedStatement.executeUpdate();
+
+			// Check to be sure only one row was updated		
+			if(numberRowsUpdated == 1) {
+				updateWorked = true;
+			}
+			else 
+			{
+				throw new DataBaseUpdateException("Attempt to update Participants \"" + aParticipant.getFullName() + "\"");
+			}
+		
+		} catch (Exception ex) {
+			ex.printStackTrace();
 		}
-		else {
-			throw new DataBaseUpdateException("Attempt to update Participants \"" + aParticipant.getFullName() + "\"");
-		}
+
+		return updateWorked;
 	}
 
 	@Override
-	public void deleteParticipant(String name) throws DataBaseDeleteException {
+	public int deleteParticipant(String name) throws DataBaseDeleteException {
+		int numberRowsDeleted = 0;
+		
 		// Define String to hold SQL statement to send to database manager
 		String updateSQL = "delete from participant where full_name = ?";
 		
-		// Send SQL string to data base manager and receive how many rows were affected
-		int numberRowsDeleted = participantDB.update(updateSQL, name);
-		
-		// Check to be sure only one row was deleted
-		if(numberRowsDeleted != 1) {
-			throw new DataBaseDeleteException("Attempt to delete Participant " + name + "\"");
+		try {
+			PreparedStatement preparedStatement = DbConn.getConn().prepareStatement(updateSQL);
+			
+			preparedStatement.setString( 1, name);
+
+			numberRowsDeleted = preparedStatement.executeUpdate();
+
+			// Check to be sure only one row was deleted
+			if(numberRowsDeleted != 1) {
+				throw new DataBaseDeleteException("Attempt to delete Participant " + name + "\"");
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
 		}
 		
+		return numberRowsDeleted;
+	}
+	
+	public int deleteParticipant(int id) throws DataBaseDeleteException {
+		int numberRowsDeleted = 0;
+
+		// Define String to hold SQL statement to send to database manager
+		String updateSQL = "delete from participant where participant_id = ?";
+		
+		try {
+			PreparedStatement preparedStatement = DbConn.getConn().prepareStatement(updateSQL);
+			
+			preparedStatement.setInt( 1, id);
+
+			numberRowsDeleted = preparedStatement.executeUpdate();
+
+			// Check to be sure only one row was deleted
+			if(numberRowsDeleted != 1) {
+				throw new DataBaseDeleteException("Attempt to delete Participant " + id + "\"");
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+		
+		return numberRowsDeleted;
 	}
 
 }

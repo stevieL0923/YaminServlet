@@ -4,6 +4,7 @@ import java.util.Objects;
 
 public class Participant {
 
+	private int participantId = 0;
 	private String fullName = null;
 	private String email = null;
 	private String phone = null;
@@ -19,6 +20,15 @@ public class Participant {
 		this.email = email;
 		this.phone = phone;
 		this.morningSession = morningSession;
+	}
+
+	public int getParticipantId() {
+		return participantId;
+	}
+
+
+	public void setParticipantId(int participantId) {
+		this.participantId = participantId;
 	}
 
 

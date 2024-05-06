@@ -1,48 +1,47 @@
 package batch;
 
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.sql.DataSource;
-
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.support.rowset.SqlRowSet;
-
+import dbConn.DbConn;
 import exception.DataBaseDeleteException;
 import exception.DataBaseInsertException;
 import exception.DataBaseUpdateException;
 
 public class JdbcBatchDao implements BatchDao {
 
-	// Define a reference to a JdbcTemplateObject we can use to access the tables in the database
-	private JdbcTemplate batchDB;
 
 	// Instantiate a JdbcTemplate object and assign to reference in the constructor
-	public JdbcBatchDao(DataSource aDataSource) {
-		batchDB = new JdbcTemplate(aDataSource);
-	}
+	public JdbcBatchDao() {	}
 	
 	@Override
 	public List<Batch> getAllBatch() {
+		ResultSet results;
+		
 		// Define a String with SQL to be run
 		String allBatches = "select * from batch"; // Note ; not required in at then end of SQL string
-		
-		// Send the SQL String to the database manage and store result in an SqlRowSet
-		SqlRowSet rowSet = batchDB.queryForRowSet(allBatches);
 		
 		// Define the object containing all batches
 		List<Batch> batchList = new ArrayList<Batch>();
 		
-		// "Parse the result" - convert the rows from select into batch objects object
-		//                      using a method to retrieve each row, create a batch
-		//                         then add the batch object to the list
+		try {
+
+			PreparedStatement preparedStatement = DbConn.getConn().prepareStatement(allBatches);
+			
+			results = preparedStatement.executeQuery();
+			
+			while(results.next()) {
+				batchList.add(batchHelper(results));
+			}
+			
+		} catch (SQLException e) {
+			e.printStackTrace();
+		} 
 		
-		// Loop through the SqlRowset converting the rows in it, one at a time
-		while(rowSet.next()) { // Position at the next row (if there is one)
-			batchList.add(batchHelper(rowSet)); // Convert current row to an object
-		}
-		
-		return batchList;  // Return the object containing all the batchs
+		return batchList;
 
 	}
 
@@ -51,19 +50,23 @@ public class JdbcBatchDao implements BatchDao {
 	// Since its requires an object (SqlRowSet) created in this class it doesn't
 	//       make sense to allow other outside the class to use
 	
-	private Batch batchHelper(SqlRowSet aRow) {
+	private Batch batchHelper(ResultSet aRow) {
 	// Define an object to be returned
 		Batch aBatch = new Batch(); // A Batch object initialized to default values
 		
 	 // Use the setters for the POJO to set the values from each column the SqlRowSet
-		String id = aRow.getString("batch_id");
-		aBatch.setId(Integer.parseInt(id));
-		
-		String timeSlot = aRow.getString("timeSlot");
-		aBatch.setTimeslot(Integer.parseInt(timeSlot));
-
-		String morning = aRow.getString("morning");
-		aBatch.setMorning(Boolean.parseBoolean(morning));
+		try {
+			String id = aRow.getString("batch_id");
+			aBatch.setId(Integer.parseInt(id));
+			
+			String timeSlot = aRow.getString("timeSlot");
+			aBatch.setTimeslot(Integer.parseInt(timeSlot));
+	
+			String morning = aRow.getString("morning");
+			aBatch.setMorning(Boolean.parseBoolean(morning));
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
 		
 		// Return the object created in this method
 		return aBatch;
@@ -71,17 +74,26 @@ public class JdbcBatchDao implements BatchDao {
 	
 	@Override
 	public Batch getBatchById(int id) {
+		ResultSet results;
+
 		Batch aBatch = null;
 		
 		String sqlString = " select * from batch"
 	              + " where id = ?";
 	
-		SqlRowSet theBatchFromDatabase = batchDB.queryForRowSet(sqlString, id);
-		
-		if(theBatchFromDatabase.next()) {   // if the Batch was found, position the result at the first row
-			aBatch = batchHelper(theBatchFromDatabase); // Send the result to conversion method
-		}
+		try {
+			PreparedStatement preparedStatement = DbConn.getConn().prepareStatement(sqlString);
 
+			preparedStatement.setInt (1, id);
+		
+			results = preparedStatement.executeQuery();
+		
+			if(results.next()) {   // if the Batch was found, position the result at the first row
+				aBatch = batchHelper(results); // Send the result to conversion method
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
 		return aBatch;
 	}
 
@@ -91,24 +103,33 @@ public class JdbcBatchDao implements BatchDao {
 		String sqlString = " insert into batch " 
 				              +" (batch_id, timeSlot, morning) "
 				              +" values(?, ?, ?)";		
-				
-		// Send the SQL String to the database manager with data from batch object received
-		int numberRowsAdded = batchDB.update(sqlString,
-												aBatch.getId(),
-												aBatch.getTimeslot(),
-												aBatch.isMorning()
-											);
 		
-		// Check to see if a row was added to the data base
-		if(numberRowsAdded != 1) {
-			throw new DataBaseInsertException("Attempt to add Batch \"" + aBatch.getId() + "\"");
+		try {
+			PreparedStatement preparedStatement = DbConn.getConn().prepareStatement(sqlString);
+			
+			preparedStatement.setInt( 1, aBatch.getId());
+			preparedStatement.setInt( 2, aBatch.getTimeslot());
+			preparedStatement.setBoolean( 3, aBatch.isMorning());
+			
+			int numberRowsAdded = preparedStatement.executeUpdate();
+			
+			if(numberRowsAdded != 1) {
+				throw new DataBaseInsertException("Attempt to add Batch \"" + aBatch.getId() + "\"");
+			}
+	
+		} catch (Exception ex) {
+			ex.printStackTrace();
 		}
+
 		// return to caller
 		return;
 	}
 
 	@Override
 	public boolean updateBatch(Batch aBatch) throws DataBaseUpdateException {
+		// Define return value variable
+		boolean updateWorked = false;
+
 		// Define String to hold SQL statement to be sent to database manager
 		//      with "?" where values in program variables should be used
 		//       and where clause to be sure only specific batch is updated
@@ -118,34 +139,53 @@ public class JdbcBatchDao implements BatchDao {
 				          +",       morning   = ? "
 				          +" where  batch_id  = ?";
 		
-		// Send the SQL String to the database manage and receive number of rows affected
-		int numberRowsUpdated = batchDB.update(updateSQL
-				                                  ,aBatch.getTimeslot()
-				                                  ,aBatch.isMorning()
-				                                  ,aBatch.getId()
-				                                  );
-		// Check to be sure only one row was updated		
-		if(numberRowsUpdated == 1) {
-			return true;
+		try {
+			PreparedStatement preparedStatement = DbConn.getConn().prepareStatement(updateSQL);
+			
+			preparedStatement.setInt(     1, aBatch.getTimeslot());
+			preparedStatement.setBoolean( 2, aBatch.isMorning());
+			preparedStatement.setInt(     3, aBatch.getId());
+			
+			int numberRowsUpdated = preparedStatement.executeUpdate();
+
+			// Check to be sure only one row was updated		
+			if(numberRowsUpdated == 1) {
+				updateWorked = true;
+			}
+			else 
+			{
+				throw new DataBaseUpdateException("Attempt to update Batchs \"" + aBatch.getId() + "\"");
+			}
+		
+		} catch (Exception ex) {
+			ex.printStackTrace();
 		}
-		else {
-			throw new DataBaseUpdateException("Attempt to update Batchs \"" + aBatch.getId() + "\"");
-		}
+
+		return updateWorked;
 	}
 
 	@Override
-	public void deleteBatch(int id) throws DataBaseDeleteException {
+	public int deleteBatch(int id) throws DataBaseDeleteException {
+		int numberRowsDeleted = 0;
+
 		// Define String to hold SQL statement to send to database manager
+		
 		String updateSQL = "delete from batch where id = ?";
-		
-		// Send SQL string to data base manager and receive how many rows were affected
-		int numberRowsDeleted = batchDB.update(updateSQL, id);
-		
-		// Check to be sure only one row was deleted
-		if(numberRowsDeleted != 1) {
-			throw new DataBaseDeleteException("Attempt to delete Batch " + id + "\"");
+		try {
+			PreparedStatement preparedStatement = DbConn.getConn().prepareStatement(updateSQL);
+			
+			preparedStatement.setInt( 1, id);
+
+			numberRowsDeleted = preparedStatement.executeUpdate();
+
+			// Check to be sure only one row was deleted
+			if(numberRowsDeleted != 1) {
+				throw new DataBaseDeleteException("Attempt to delete Participant " + id + "\"");
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
 		}
-
+		
+		return numberRowsDeleted;
 	}
-
 }

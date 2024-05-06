@@ -1,48 +1,46 @@
 package enrollment;
 
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.sql.DataSource;
-
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.support.rowset.SqlRowSet;
-
+import dbConn.DbConn;
 import exception.DataBaseDeleteException;
 import exception.DataBaseInsertException;
 import exception.DataBaseUpdateException;
 
 public class JdbcEnrollmentDao implements EnrollmentDao {
 
-	// Define a reference to a JdbcTemplateObject we can use to access the tables in the database
-	private JdbcTemplate enrollmentDB;
-
 	// Instantiate a JdbcTemplate object and assign to reference in the constructor
-	public JdbcEnrollmentDao(DataSource aDataSource) {
-		enrollmentDB = new JdbcTemplate(aDataSource);
-	}
+	public JdbcEnrollmentDao() {}
 	
 	@Override
 	public List<Enrollment> getAllEnrollment() {
+		ResultSet results;
+		
 		// Define a String with SQL to be run
-		String allEnrollmentes = "select * from enrollment"; // Note ; not required in at then end of SQL string
-		
-		// Send the SQL String to the database manage and store result in an SqlRowSet
-		SqlRowSet rowSet = enrollmentDB.queryForRowSet(allEnrollmentes);
-		
-		// Define the object containing all enrollments
+		String sqlString = "select * from enrollment"; // Note ; not required in at then end of SQL string
+
 		List<Enrollment> enrollmentList = new ArrayList<Enrollment>();
 		
-		// "Parse the result" - convert the rows from select into enrollment objects object
-		//                      using a method to retrieve each row, create a enrollment
-		//                         then add the enrollment object to the list
+		try {
+
+			PreparedStatement preparedStatement = DbConn.getConn().prepareStatement(sqlString);
+			
+			results = preparedStatement.executeQuery();
+			
+			while(results.next()) {
+				enrollmentList.add(enrollmentHelper(results));
+			}
+			
+		} catch (SQLException e) {
+			e.printStackTrace();
+		} 
 		
-		// Loop through the SqlRowset converting the rows in it, one at a time
-		while(rowSet.next()) { // Position at the next row (if there is one)
-			enrollmentList.add(enrollmentHelper(rowSet)); // Convert current row to an object
-		}
-		
-		return enrollmentList;  // Return the object containing all the enrollments
+		return enrollmentList;
+
 	}
 
 	// Convert a row in the results from a Select into a Enrollment object
@@ -50,16 +48,23 @@ public class JdbcEnrollmentDao implements EnrollmentDao {
 	// Since its requires an object (SqlRowSet) created in this class it doesn't
 	//       make sense to allow other outside the class to use
 	
-	private Enrollment enrollmentHelper(SqlRowSet aRow) {
-	// Define an object to be returned
+	private Enrollment enrollmentHelper(ResultSet aRow) {
+		// Define an object to be returned
 		Enrollment aEnrollment = new Enrollment(); // A Enrollment object initialized to default values
 		
-	 // Use the setters for the POJO to set the values from each column the SqlRowSet		
-		String participantId = aRow.getString("participant_id");
-		aEnrollment.setParticipantId(Integer.parseInt(participantId));
+		try {
+			// Use the setters for the POJO to set the values from each column the SqlRowSet	
+			int id = aRow.getInt("id");
+			aEnrollment.setId(id);
+			
+			int participantId = aRow.getInt("participant_id");
+			aEnrollment.setParticipantId(participantId);
 
-		String batchId = aRow.getString("batch_id");
-		aEnrollment.setBatchId(Integer.parseInt(batchId));
+			int batchId = aRow.getInt("batch_id");
+			aEnrollment.setBatchId(batchId);
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
 		
 		// Return the object created in this method
 		return aEnrollment;
@@ -67,44 +72,61 @@ public class JdbcEnrollmentDao implements EnrollmentDao {
 	
 	@Override
 	public Enrollment getEnrollmentById(int id) {
+		ResultSet results;
+
 		Enrollment aEnrollment = null;
 		
 		String sqlString = " select * from enrollment"
 	              + " where id = ?";
 	
-		SqlRowSet theEnrollmentFromDatabase = enrollmentDB.queryForRowSet(sqlString, id);
-		
-		if(theEnrollmentFromDatabase.next()) {   // if the Enrollment was found, position the result at the first row
-			aEnrollment = enrollmentHelper(theEnrollmentFromDatabase); // Send the result to conversion method
+		try {
+			PreparedStatement preparedStatement = DbConn.getConn().prepareStatement(sqlString);
+			
+			preparedStatement.setInt (1, id);
+			
+			results = preparedStatement.executeQuery();
+			
+			if(results.next()) {   // if the Participant was found, position the result at the first row
+				aEnrollment = enrollmentHelper(results); // Send the result to conversion method
+			}
+	
+		} catch (Exception ex) {
+			ex.printStackTrace();
 		}
-
+		
 		return aEnrollment;
+
 	}
 
 	@Override
 	public void addEnrollment(Enrollment aEnrollment) throws DataBaseInsertException {
+
 		// Define a String to hold the SQL to be sent to the database manager
 		String sqlString = " insert into enrollment " 
-				              +" (participant_id, batch_id) "
-				              +" values(?, ?)";		
-				
-		// Send the SQL String to the database manager with data from enrollment object received
-		int numberRowsAdded = enrollmentDB.update(sqlString,
-												aEnrollment.getParticipantId(),
-												aEnrollment.getBatchId()
-											);
-		
-		// Check to see if a row was added to the data base
-		if(numberRowsAdded != 1) {
-			throw new DataBaseInsertException("Attempt to add Enrollment for\"" + aEnrollment.getParticipantId() + "\"");
+				              +" values(null, ?, ?)";			
+		try {
+			PreparedStatement preparedStatement = DbConn.getConn().prepareStatement(sqlString);
+			
+			preparedStatement.setInt( 1, aEnrollment.getParticipantId());
+			preparedStatement.setInt( 2, aEnrollment.getBatchId());
+			
+			int numberRowsAdded = preparedStatement.executeUpdate();
+			
+			if(numberRowsAdded != 1) {
+				throw new DataBaseInsertException("Attempt to add Enrollment \"" + aEnrollment.getId() + "\"");
+			}
+	
+		} catch (Exception ex) {
+			ex.printStackTrace();
 		}
-		// return to caller
-		return;
 		
+		return;
 	}
 
 	@Override
 	public boolean updateEnrollment(Enrollment aEnrollment) throws DataBaseUpdateException {
+		boolean updateWorked = false;
+		
 		// Define String to hold SQL statement to be sent to database manager
 		//      with "?" where values in program variables should be used
 		//       and where clause to be sure only specific enrollment is updated
@@ -112,33 +134,53 @@ public class JdbcEnrollmentDao implements EnrollmentDao {
 		String updateSQL = " update enrollment "
 				          +"    set batch_id   = ? "
 				          +" where  participant_id  = ?";
+		try {
+			PreparedStatement preparedStatement = DbConn.getConn().prepareStatement(updateSQL);
+			
+			preparedStatement.setInt( 1, aEnrollment.getBatchId());
+			preparedStatement.setInt( 2, aEnrollment.getParticipantId());
+			
+			int numberRowsUpdated = preparedStatement.executeUpdate();
+
+			// Check to be sure only one row was updated		
+			if(numberRowsUpdated == 1) {
+				updateWorked = true;
+			}
+			else 
+			{
+				throw new DataBaseUpdateException("Attempt to update Enrollment \"" + aEnrollment.getId() + "\"");
+			}
 		
-		// Send the SQL String to the database manage and receive number of rows affected
-		int numberRowsUpdated = enrollmentDB.update(updateSQL
-				                                  ,aEnrollment.getBatchId()
-				                                  ,aEnrollment.getParticipantId()
-				                                  );
-		// Check to be sure only one row was updated		
-		if(numberRowsUpdated == 1) {
-			return true;
+		} catch (Exception ex) {
+			ex.printStackTrace();
 		}
-		else {
-			throw new DataBaseUpdateException("Attempt to update Enrollments \"" + aEnrollment.getParticipantId() + "\"");
-		}
+
+		return updateWorked;
 	}
 
 	@Override
-	public void deleteEnrollment(int id) throws DataBaseDeleteException {
+	public int deleteEnrollment(int id) throws DataBaseDeleteException {
 		// Define String to hold SQL statement to send to database manager
 		String updateSQL = "delete from enrollment where id = ?";
 		
 		// Send SQL string to data base manager and receive how many rows were affected
-		int numberRowsDeleted = enrollmentDB.update(updateSQL, id);
+		int numberRowsDeleted = 0;
 		
-		// Check to be sure only one row was deleted
-		if(numberRowsDeleted != 1) {
-			throw new DataBaseDeleteException("Attempt to delete Enrollment " + id + "\"");
-		}
-	}
+		try {
+			PreparedStatement preparedStatement = DbConn.getConn().prepareStatement(updateSQL);
+			
+			preparedStatement.setInt( 1, id);
 
+			numberRowsDeleted = preparedStatement.executeUpdate();
+
+			// Check to be sure only one row was deleted
+			if(numberRowsDeleted != 1) {
+				throw new DataBaseDeleteException("Attempt to delete Enrollment " + id + "\"");
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+		
+		return numberRowsDeleted;
+	}
 }

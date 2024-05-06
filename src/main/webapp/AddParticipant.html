@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="ISO-8859-1">
+<title>Add New Participant</title>
+</head>
+<body>
+	<h3>Add New Participant</h3>
+	<br>
+	
+	<form name="newForm" method="post" action="updateAddParticipant">
+	    <label for="username">Full Name:</label> <input type="text" id="username" name="username" required/> <br/>
+	    <label for="email">Email:</label> <input type="text" id="email" name="email" required/> <br/>
+	    <label for="phone">Phone:</label> <input type="text" id="phone" name="phone" required/> <br/>
+		  <input type="radio" id="morning" name="session" value="morning">
+		  <label for="morning">Morning Session</label><br>
+		  <input type="radio" id="evening" name="session" value="evening">
+  		  <label for="evening">Evening Session</label><br>
+	    
+	    <input type="submit" value="New" />
+    </form>
+</body>
+</html>
